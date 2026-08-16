@@ -1,7 +1,7 @@
 param(
     [string]$ComPort = 'COM4',
     [int]$Baud = 460800,
-    [string]$File = 'nodemcu-main\nodemcu-release-8mod-float.bin'
+    [string]$File = 'firmware\nodemcu-release-8mod-float.bin'
 )
 
 if (-not (Test-Path $File)) { Write-Error "No existe $File"; exit 1 }

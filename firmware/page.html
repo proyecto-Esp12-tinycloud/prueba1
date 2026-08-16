@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESP12 Control</title>
+<style>
+body,td,th { color: #036; }
+body { background-color: #DBDBDB; font-family: Verdana; text-align: center; }
+h1 { color: #000; }
+h2 { color: black; text-shadow: 2px 2px #465FFF; }
+.button { display: inline-block; padding: 10px 18px; font-size: 16px; font-weight: bold;
+  text-align: center; text-decoration: none; border-radius: 8px; color: #465FFF;
+  background-color: #DBDBDB; border: none; box-shadow: 0 12px 16px 0 rgba(0,0,0,0.24),
+  0 17px 50px 0 rgba(0,0,0,0.19); }
+.button:hover { background-color: #45a049; }
+.button.on { background-color: #4CAF50; color: white; }
+.button.off { background-color: #f44336; color: white; }
+.big { font-size: 22px; padding: 14px 24px; margin: 4px; }
+input { font-size: 16px; padding: 8px; width: 60%; }
+#msg { color: #900; font-weight: bold; }
+</style>
+</head>
+<body>
+<center>
+<h1>ESP12 Control Panel</h1>
+<h2>WiFi</h2>
+<div id="wifi">
+  <div id="wifiStatus">Sin conexion</div>
+  <button class="button" onclick="scanWifi()">Buscar redes</button>
+  <select id="netSel" onchange="wifiInfo()" style="font-size:16px;padding:8px;width:60%;margin:6px"></select>
+  <div id="netInfo" style="font-size:14px;margin:4px"></div>
+  <input id="wifiPwd" type="password" placeholder="Clave de la red (si tiene)" style="width:60%">
+  <label><input type="checkbox" id="showPwd" onchange="var p=document.getElementById('wifiPwd'); p.type=this.checked?'text':'password'"> Mostrar clave</label>
+  <button class="button" onclick="connectWifi()">Conectar a esta red</button>
+  <div id="wifiMsg" style="color:#900;font-weight:bold"></div>
+</div>
+<br>
+<button class="button big" onclick="go('/cmd?all=on')">ENCENDER TODO</button>
+<button class="button big" onclick="go('/cmd?all=off')">APAGAR TODO</button>
+<div id="msg"></div>
+<h2>Pin States</h2>
+<div id="pins"></div>
+<h2>PWM Config</h2>
+<div id="pwm"></div>
+<script>
+function render(st){
+  var h = '';
+  for (var pin in st.pins) h += 'Pin ' + pin + ': <a class="button ' + (st.pins[pin] ? 'on' : 'off') + '" href="#" onclick="go(\'/toggle?pin=' + pin + '\');return false;">' + (st.pins[pin] ? 'ON' : 'OFF') + '</a><br><br>';
+  document.getElementById('pins').innerHTML = h;
+  document.getElementById('pwm').innerHTML = 'Duty: ' + st.duty + ' / 1023<br>' +
+    '<a class="button" href="#" onclick="go(\'/pwm?duty=0\');return false;">0</a> ' +
+    '<a class="button" href="#" onclick="go(\'/pwm?duty=256\');return false;">25%</a> ' +
+    '<a class="button" href="#" onclick="go(\'/pwm?duty=512\');return false;">50%</a> ' +
+    '<a class="button" href="#" onclick="go(\'/pwm?duty=768\');return false;">75%</a> ' +
+    '<a class="button" href="#" onclick="go(\'/pwm?duty=1023\');return false;">100%</a>';
+}
+function go(u){
+  fetch(u).then(function(r){ return r.json(); }).then(function(st){ render(st); })
+    .catch(function(){ document.getElementById('msg').innerHTML = 'Sin conexion con el ESP'; });
+}
+function loadState(){ go('/state'); }
+function scanWifi(){
+  document.getElementById('wifiMsg').innerHTML = 'Buscando redes...';
+  fetch('/scan').then(function(r){ return r.json(); }).then(function(d){
+    var sel = document.getElementById('netSel');
+    sel.innerHTML = '';
+    var nets = d.nets || [];
+    if(!nets.length){ document.getElementById('wifiMsg').innerHTML = 'No se encontraron redes'; return; }
+    nets.forEach(function(n){
+      var o = document.createElement('option');
+      o.value = n.ssid;
+      o.textContent = n.ssid + ' (' + n.rssi + ' dBm)' + (n.auth ? ' [segura]' : ' [abierta]');
+      sel.appendChild(o);
+    });
+    document.getElementById('wifiMsg').innerHTML = nets.length + ' redes encontradas. Elegi una y conectate.';
+    wifiInfo();
+  }).catch(function(){ document.getElementById('wifiMsg').innerHTML = 'Error escaneando redes'; });
+}
+function wifiInfo(){
+  var s = document.getElementById('netSel');
+  if(!s || !s.selectedOptions.length) return;
+  var o = s.selectedOptions[0];
+  document.getElementById('netInfo').textContent = o.textContent;
+}
+function connectWifi(){
+  var s = document.getElementById('netSel');
+  if(!s || !s.selectedOptions.length){ document.getElementById('wifiMsg').innerHTML = 'Primero buscate redes'; return; }
+  var ssid = s.value;
+  var pwd = document.getElementById('wifiPwd').value;
+  document.getElementById('wifiMsg').innerHTML = 'Conectando a ' + ssid + '...';
+  fetch('/connect?ssid=' + encodeURIComponent(ssid) + '&pwd=' + encodeURIComponent(pwd))
+    .then(function(r){ return r.json(); }).then(function(d){
+      if(d.ip){
+        document.getElementById('wifiMsg').innerHTML = 'Conectado a ' + d.ssid + ' (IP en tu red: ' + d.ip + '). El AP sigue activo en http://' + d.ap + '/. Segui controlando desde aca.';
+      } else {
+        document.getElementById('wifiMsg').innerHTML = 'Configurado: ' + d.ssid + '. No se obtuvo IP en 15s. Verifica la clave.';
+        setTimeout(loadWifiStatus, 3000);
+      }
+    }).catch(function(){ document.getElementById('wifiMsg').innerHTML = 'Error al conectar'; });
+}
+function loadWifiStatus(){
+  fetch('/wifi').then(function(r){ return r.json(); }).then(function(d){
+    document.getElementById('wifiStatus').textContent = d.connected
+      ? 'Conectado a ' + d.ssid + ' (IP en tu red: ' + d.ip + '). AP activo en http://' + d.ap + '/'
+      : 'Sin conexion STA (AP activo en http://' + d.ap + '/)';
+  }).catch(function(){});
+}
+setTimeout(loadWifiStatus, 1500);
+loadState();
+</script>
+</center></body></html>

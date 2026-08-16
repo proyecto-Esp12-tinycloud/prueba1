@@ -1,10 +1,10 @@
 param(
     [string]$ComPort = 'COM4',
-    [string]$InitLua = 'nodemcu-main\init.lua',
-    [string]$PageHtml = 'nodemcu-main\page.html'
+    [string]$InitLua = 'firmware\init.lua',
+    [string]$PageHtml = 'firmware\page.html'
 )
 
-$upload = Join-Path $PSScriptRoot "..\nodemcu-main\nodemcu-upload.ps1"
+$upload = Join-Path $PSScriptRoot "nodemcu-upload.ps1"
 
 Write-Host "Subiendo $InitLua..."
 & powershell -ExecutionPolicy Bypass -File $upload -ComPort $ComPort -File (Join-Path $PSScriptRoot "..\$InitLua") -Dest init.lua
