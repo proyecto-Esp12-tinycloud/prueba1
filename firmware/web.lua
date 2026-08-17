@@ -121,8 +121,9 @@ function startServer()
             elseif payload:find("GET /wifi") then
                 handleWifiStatus(conn)
             else
+                local staIp = wifi.sta.getip() or ""
                 local host = payload:match("[Hh]ost:%s*([^%s%r%n]+)") or ""
-                if host:find(AP_IP) then
+                if host:find(AP_IP) or (staIp ~= "" and host:find(staIp)) then
                     sendPage(conn)
                 else
                     conn:send("HTTP/1.1 302 Found\r\nLocation: http://" .. AP_IP .. "/\r\n\r\n", function() conn:close() end)
