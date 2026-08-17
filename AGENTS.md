@@ -31,7 +31,7 @@ Firmware binario: `firmware\nodemcu-release-8mod-float.bin` (NodeMCU 3.0.0 float
 
 ## Estado del firmware (`firmware/`)
 - AP `ESP12-CONFIG` / `12345678`, portal web en `192.168.4.1` (**IP privada**; el usuario la acepta: en Android 10+ el captive portal NO se abre solo, hay que escribir `http://192.168.4.1` a mano).
-- **Flujo**: arranca en AP+STA (`wifi.sta.autoconnect(0)`) y **sin red guardada** (las credenciales son solo variables de sesión `cfgSSID`/`cfgPWD`; NO se persisten en `wifi.dat`). El AP **nunca se apaga**: queda siempre en `wifi.STATIONAP`. Al conectar a una red con `wifi.sta.config` `save=false` y obtener IP, el AP sigue activo y el portal queda accesible en la IP fija del AP; además se muestra la IP STA dinámica para entrar desde la red del router.
+- **Flujo**: arranca en AP+STA (`wifi.sta.autoconnect(0)`) y **sin red guardada** (las credenciales son solo variables de sesión `cfgSSID`/`cfgPWD`; NO se persisten en `wifi.dat`). Al conectar a una red con `wifi.sta.config` `save=false` y obtener IP, el chip hace **"AP corto y vuelve"**: apaga el AP ~10s (para que el celular vuelva solo a su red WiFi) y lo reenciende con `ESP12-CONFIG` en `192.168.4.1`. El portal queda accesible en la IP fija del AP y en la IP STA dinámica (mostrada en `/connect` y `/wifi`).
 - **Captive portal**: mini servidor DNS (UDP 53) responde toda consulta con `192.168.4.1`; el servidor web responde `302 Location: http://192.168.4.1/` a cualquier Host que no sea la IP del AP.
 - **Pines**: salidas 6, 7, 8, 0; PWM pin 4 (500 Hz, duty 0-1023). Endpoints: `/cmd /toggle /pwm /state` (handleGet), `/scan`, `/connect`, `/wifi` (el JSON incluye `"ap":"192.168.4.1"`).
 

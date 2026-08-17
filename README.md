@@ -45,10 +45,10 @@ Si el puerto serie falla, detectar con `Get-PnpDevice -Class Ports` (CH340 oscil
 - `handleGet(conn, payload)` — procesa `/cmd`, `/toggle`, `/pwm`, `/state`.
 - `startServer()` — servidor TCP en puerto 80; enruta endpoints y redirige (302) al portal a cualquier otro Host.
 - Servidor DNS (UDP 53) — responde toda consulta con la IP del AP (captive portal).
-- Watchdog (2s) — solo reintenta la conexión STA si hay red configurada; **no apaga el AP**.
+- Watchdog (2s) — solo reintenta la conexión STA si hay red configurada; **no apaga el AP** (el corte lo hace `blinkAp()` al conectar).
 
 ## Uso
 
 1. Conectarse a `ESP12-CONFIG` (clave `12345678`); abrir `http://192.168.4.1` a mano (en Android 10+ el captive portal no se abre solo).
 2. Escanear, elegir red, poner clave, conectar.
-3. Al obtener IP, el AP **sigue activo** en `192.168.4.1`; el portal también muestra la IP STA dinámica para entrar desde la red del router.
+3. Al obtener IP, el chip hace **"AP corto y vuelve"**: apaga el AP ~10s (el celular vuelve solo a tu red WiFi) y lo reenciende en `192.168.4.1`; el portal también muestra la IP STA dinámica para entrar desde tu red.

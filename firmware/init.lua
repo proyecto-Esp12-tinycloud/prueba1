@@ -25,24 +25,11 @@ local cfgSSID = nil
 local cfgPWD = ""
 print("Portal " .. AP_IP)
 
-local gotip = false
 tmr.create():alarm(2000, tmr.ALARM_AUTO, function()
-    local ip = wifi.sta.getip()
-    if ip then
-        if not gotip then
-            gotip = true
-            print("IP STA=" .. ip .. " AP=" .. AP_IP)
-        end
-    else
-        if gotip then
-            gotip = false
-            print("STA desconectado, AP sigue activo")
-        end
-        if cfgSSID then
-            local st = wifi.sta.status()
-            if st == wifi.STA_IDLE or st == wifi.STA_FAIL then
-                wifi.sta.connect()
-            end
+    if not wifi.sta.getip() and cfgSSID then
+        local st=wifi.sta.status()
+        if st==wifi.STA_IDLE or st==wifi.STA_FAIL then
+            wifi.sta.connect()
         end
     end
 end)
@@ -114,6 +101,15 @@ local function handleScan(conn)
     end)
 end
 
+local function blinkAp()
+    wifi.setmode(wifi.STATION)
+    tmr.create():alarm(10000, tmr.ALARM_SINGLE, function()
+        wifi.setmode(wifi.STATIONAP)
+        wifi.ap.config({ssid = AP_SSID, pwd = AP_PWD})
+        wifi.ap.setip({ip = AP_IP, netmask = "255.255.255.0", gateway = AP_IP})
+    end)
+end
+
 local function handleConnect(conn, payload)
     local ssid = urldecode(payload:match("ssid=([^&%s]+)"))
     local pwd = urldecode(payload:match("pwd=([^&%s]+)"))
@@ -130,6 +126,7 @@ local function handleConnect(conn, payload)
             t:unregister()
             local body = "{\"ok\":true,\"ssid\":\"" .. ssid .. "\",\"ip\":\"" .. (ip or "") .. "\",\"ap\":\"" .. AP_IP .. "\"}"
             conn:send(J .. body, function() conn:close() end)
+            if ip then blinkAp() end
         end
     end)
 end

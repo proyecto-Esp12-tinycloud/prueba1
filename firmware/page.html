@@ -92,7 +92,7 @@ function connectWifi(){
   fetch('/connect?ssid=' + encodeURIComponent(ssid) + '&pwd=' + encodeURIComponent(pwd))
     .then(function(r){ return r.json(); }).then(function(d){
       if(d.ip){
-        document.getElementById('wifiMsg').innerHTML = 'Conectado a ' + d.ssid + ' (IP en tu red: ' + d.ip + '). El AP sigue activo en http://' + d.ap + '/. Segui controlando desde aca.';
+        document.getElementById('wifiMsg').innerHTML = 'Conectado a ' + d.ssid + ' (IP en tu red: ' + d.ip + '). El AP se corta 10s para que tu celular vuelva a tu WiFi; despues abri http://' + d.ip + '/ o http://' + d.ap + '/';
       } else {
         document.getElementById('wifiMsg').innerHTML = 'Configurado: ' + d.ssid + '. No se obtuvo IP en 15s. Verifica la clave.';
         setTimeout(loadWifiStatus, 3000);
