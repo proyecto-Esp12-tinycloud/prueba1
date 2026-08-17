@@ -1,6 +1,6 @@
 # Smart LED ESP-01 con NodeMCU/Lua
 
-Firmware para **ESP8266 (ESP-01, flash 4MB)** con **NodeMCU (Lua)**: el ESP crea un AP WiFi (`ESP12-CONFIG`) con portal web para configurar la red y controlar pines. Toda la lógica vive en `firmware/init.lua`, la UI en `firmware/page.html`.
+Firmware para **ESP8266 (ESP-01, flash 4MB)** con **NodeMCU (Lua)**: el ESP crea un AP WiFi (`ESP12-CONFIG`) con portal web para configurar la red y controlar pines. Toda la lógica vive en `firmware/init.lua` + `firmware/web.lua`, la UI en `firmware/page.html`.
 
 > **Sin PlatformIO ni Arduino.** Se usa esptool (pip) + scripts PowerShell en `tools/`.
 
@@ -15,7 +15,7 @@ Firmware para **ESP8266 (ESP-01, flash 4MB)** con **NodeMCU (Lua)**: el ESP crea
    ```
    powershell -ExecutionPolicy Bypass -File tools\flash.ps1
    ```
-4. Subir el código (`init.lua` + `page.html`):
+4. Subir el código (`init.lua` + `page.html` + `web.lua`):
    ```
    powershell -ExecutionPolicy Bypass -File tools\upload-lua.ps1
    ```
@@ -34,8 +34,11 @@ Si el puerto serie falla, detectar con `Get-PnpDevice -Class Ports` (CH340 oscil
 | 2 | LED onboard | activo en bajo; no usado |
 | 1 (TX) / 3 (RX) | serial | no usar como salida |
 
-## Funciones del script (`firmware/init.lua`)
+## Funciones del script (`firmware/init.lua` + `firmware/web.lua`)
 
+`init.lua` (setup, ~1.3KB): modo AP+STA, watchdog (2s), DNS captive (UDP 53), `blinkAp()` (corte de AP al conectar) y carga de `web.lua` con `dofile` a los 1.5s del boot.
+
+`web.lua` (handlers, ~4.6KB):
 - `urldecode(s)` — decodifica cadenas URL-encoded (para ssid/pwd).
 - `sendState(conn)` — responde JSON con el estado de los pines y el duty del PWM.
 - `sendPage(conn)` — sirve `page.html` en fragmentos de 200 bytes.
@@ -51,4 +54,4 @@ Si el puerto serie falla, detectar con `Get-PnpDevice -Class Ports` (CH340 oscil
 
 1. Conectarse a `ESP12-CONFIG` (clave `12345678`); abrir `http://192.168.4.1` a mano (en Android 10+ el captive portal no se abre solo).
 2. Escanear, elegir red, poner clave, conectar.
-3. Al obtener IP, el chip hace **"AP corto y vuelve"**: apaga el AP ~10s (el celular vuelve solo a tu red WiFi) y lo reenciende en `192.168.4.1`; el portal también muestra la IP STA dinámica para entrar desde tu red.
+3. Al obtener IP, el chip hace **"AP corto y vuelve"**: espera 3s, apaga el AP **~45s** (el celular vuelve solo a tu red WiFi) y lo reenciende en `192.168.4.1`; el portal también muestra la IP STA dinámica para entrar desde tu red.

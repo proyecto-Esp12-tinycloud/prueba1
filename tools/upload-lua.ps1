@@ -1,7 +1,8 @@
 param(
     [string]$ComPort = 'COM4',
     [string]$InitLua = 'firmware\init.lua',
-    [string]$PageHtml = 'firmware\page.html'
+    [string]$PageHtml = 'firmware\page.html',
+    [string]$WebLua = 'firmware\web.lua'
 )
 
 $upload = Join-Path $PSScriptRoot "nodemcu-upload.ps1"
@@ -14,6 +15,12 @@ if (Test-Path (Join-Path $PSScriptRoot "..\$PageHtml")) {
     Write-Host "Subiendo $PageHtml..."
     & powershell -ExecutionPolicy Bypass -File $upload -ComPort $ComPort -File (Join-Path $PSScriptRoot "..\$PageHtml") -Dest page.html
     if ($LASTEXITCODE -ne 0) { Write-Error "Fallo subiendo page.html"; exit $LASTEXITCODE }
+}
+
+if (Test-Path (Join-Path $PSScriptRoot "..\$WebLua")) {
+    Write-Host "Subiendo $WebLua..."
+    & powershell -ExecutionPolicy Bypass -File $upload -ComPort $ComPort -File (Join-Path $PSScriptRoot "..\$WebLua") -Dest web.lua
+    if ($LASTEXITCODE -ne 0) { Write-Error "Fallo subiendo web.lua"; exit $LASTEXITCODE }
 }
 
 Write-Host "OK. Archivos Lua subidos."
