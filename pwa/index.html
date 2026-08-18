@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Control TV</title>
+<title>Control TV Halley</title>
 <style>
   body {
     background: #111;
@@ -15,7 +15,8 @@
     flex-direction: column;
     align-items: center;
   }
-  h1 { font-size: 20px; margin: 8px 0 16px; }
+  h1 { font-size: 20px; margin: 8px 0 2px; }
+  .sub { font-size: 12px; color: #888; margin-bottom: 16px; }
   .cfg {
     width: 100%;
     max-width: 320px;
@@ -46,25 +47,32 @@
   }
   .cfg button:active { background: #444; }
   #scanMsg { font-size: 13px; color: #999; min-height: 16px; }
-  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; max-width: 320px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; max-width: 320px; }
   button {
     background: #2a2a2a;
     color: #eee;
     border: 1px solid #444;
     border-radius: 10px;
-    font-size: 18px;
+    font-size: 16px;
+    font-weight: 600;
     padding: 18px 0;
     cursor: pointer;
     touch-action: manipulation;
     user-select: none;
   }
   button:active { background: #444; }
-  button.power { background: #5a1e1e; border-color: #8a2a2a; font-weight: bold; grid-column: span 2; }
-  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; max-width: 320px; margin-top: 10px; }
-  .pad .empty { visibility: hidden; }
-  #log {
-    margin-top: 16px;
+  button.power { background: #5a1e1e; border-color: #8a2a2a; grid-column: span 3; }
+  button.state { background: #1e3a5a; border-color: #2a6a8a; }
+  #status {
+    margin-top: 14px;
     font-size: 13px;
+    color: #9fb3c8;
+    min-height: 16px;
+    text-align: center;
+  }
+  #log {
+    margin-top: 12px;
+    font-size: 12px;
     color: #999;
     min-height: 20px;
     text-align: center;
@@ -74,43 +82,41 @@
 </head>
 <body>
 <h1>Control TV</h1>
+<div class="sub">Halley TV · control por CDP (firmware MStar) + WOL</div>
 <div class="cfg">
   <div class="cfg-row">
-    <input id="ipInput" type="text" placeholder="IP de la TV (ej: 192.168.0.12)">
+    <input id="ipInput" type="text" placeholder="IP de la TV (ej: 192.168.1.108)">
     <button id="applyBtn">Usar</button>
   </div>
   <button id="scanBtn">Buscar TV automaticamente</button>
   <div id="scanMsg"></div>
 </div>
 <div class="grid">
-  <button class="power" id="power">POWER</button>
   <button id="volup">VOL +</button>
-  <button id="chup">CANAL +</button>
   <button id="voldn">VOL -</button>
-  <button id="chdn">CANAL -</button>
-  <button id="back">RETROCEDER</button>
+  <button id="mute" class="state">MUTE</button>
+  <button id="chup" class="state">CH &and;</button>
+  <button id="chdn" class="state">CH &or;</button>
+  <button id="refresh" class="state">ESTADO</button>
+  <button class="power" id="power">ENCENDER (WOL)</button>
+  <button class="power" id="poweroff">APAGAR</button>
 </div>
-<div class="pad">
-  <span class="empty"></span>
-  <button id="up">&#9650;</button>
-  <span class="empty"></span>
-  <button id="left">&#9664;</button>
-  <button id="ok">OK</button>
-  <button id="right">&#9654;</button>
-  <span class="empty"></span>
-  <button id="down">&#9660;</button>
-  <span class="empty"></span>
-</div>
+<div id="status"></div>
 <div id="log"></div>
+<div class="sub" style="margin-top:12px;">Nota: esta TV <b>no permite apagar por software</b> (verificado: no tiene API de standby en su firmware; solo se apaga con el control físico). No tiene apps Netflix/YouTube. El encendido es por WOL.</div>
 
 <script>
-const log = document.getElementById('log');
-const ipInput = document.getElementById('ipInput');
-const scanMsg = document.getElementById('scanMsg');
-let TV_IP = localStorage.getItem('tvIp') || "192.168.0.12";
+var log = document.getElementById('log');
+var statusEl = document.getElementById('status');
+var ipInput = document.getElementById('ipInput');
+var scanMsg = document.getElementById('scanMsg');
+var TV_IP = localStorage.getItem('tvIp') || "192.168.1.108";
 ipInput.value = TV_IP;
 
-function logMsg(msg) { log.textContent = msg; }
+function logMsg(msg) {
+  var stamp = new Date().toLocaleTimeString('es-AR', { hour12: false });
+  log.textContent = '[' + stamp + '] ' + msg;
+}
 
 function setTvIp(ip) {
   TV_IP = ip;
@@ -118,105 +124,105 @@ function setTvIp(ip) {
   localStorage.setItem('tvIp', ip);
 }
 
-function sendKey(key) {
-  fetch("http://" + TV_IP + ":1925/1/input/key", {
-    method: "POST",
-    headers: { "Content-Type": "text/plain" },
-    body: JSON.stringify({ key: key })
-  })
-  .then(function(r) { logMsg("Enviado: " + key + " (" + r.status + ")"); })
-  .catch(function(e) { logMsg("Error: " + e.message); });
+function cdpPost(path, params) {
+  var q = Object.keys(params).map(function(k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); }).join('&');
+  return fetch(path + '?' + q, { method: 'POST' }).then(function(r) { return r.json(); });
 }
 
-function powerToggle() {
-  fetch("http://" + TV_IP + ":1925/1/powerstate")
-  .then(function(r) { return r.json(); })
-  .then(function(d) {
-    if (d.powerstate === "On") {
-      sendKey("Standby");
-    } else {
-      logMsg("La TV esta apagada; encendela con el control fisico");
-    }
-  })
-  .catch(function(e) { logMsg("Error: " + e.message); });
+function tvStatus() {
+  return cdpPost('/tv/status', { ip: TV_IP });
+}
+
+function volUp() {
+  cdpPost('/tv/vol', { ip: TV_IP, dir: 'up' }).then(function(d) {
+    if (d.ok) { logMsg('Volumen: ' + d.volume); refreshStatus(); }
+    else { logMsg('VOL + fallo: ' + (d.error || '?')); }
+  }).catch(function(e) { logMsg('VOL + fallo: ' + e.message); });
+}
+
+function volDown() {
+  cdpPost('/tv/vol', { ip: TV_IP, dir: 'down' }).then(function(d) {
+    if (d.ok) { logMsg('Volumen: ' + d.volume); refreshStatus(); }
+    else { logMsg('VOL - fallo: ' + (d.error || '?')); }
+  }).catch(function(e) { logMsg('VOL - fallo: ' + e.message); });
+}
+
+var muted = false;
+
+function toggleMute() {
+  muted = !muted;
+  cdpPost('/tv/mute', { ip: TV_IP, on: muted ? '1' : '0' }).then(function(d) {
+    if (d.ok) { logMsg('Mute: ' + (d.mute ? 'ON' : 'OFF')); refreshStatus(); }
+    else { logMsg('Mute fallo: ' + (d.error || '?')); muted = !muted; }
+  }).catch(function(e) { logMsg('Mute fallo: ' + e.message); muted = !muted; });
+}
+
+function channelMove(dir) {
+  cdpPost('/tv/channel', { ip: TV_IP, dir: dir }).then(function(d) {
+    if (d.ok) { logMsg(d.from + ' -> ' + d.to); refreshStatus(); }
+    else { logMsg('Canal fallo: ' + (d.error || '?')); }
+  }).catch(function(e) { logMsg('Canal fallo: ' + e.message); });
+}
+
+function refreshStatus() {
+  tvStatus().then(function(d) {
+    if (!d.cdp) { statusEl.textContent = 'TV ' + TV_IP + ' — sin conexion CDP (TV apagada?)'; return; }
+    var vol = (typeof d.volume === 'number' && d.volume >= 0) ? 'Vol ' + d.volume : 'Vol ?';
+    var ch = d.ok && d.channel
+      ? 'CH ' + d.channel.name + ' [' + d.channel.major + (d.channel.minor !== undefined ? '.' + d.channel.minor : '') + ']'
+      : 'CH ?';
+    statusEl.textContent = 'TV ' + TV_IP + ' — ' + vol + ' · ' + ch;
+  }).catch(function(e) { statusEl.textContent = 'TV ' + TV_IP + ' — error: ' + e.message; });
+}
+
+function powerOff() {
+  logMsg('Esta TV no permite apagar por software (sin API de standby en su firmware)');
+}
+
+function powerOn() {
+  var subnet = TV_IP.split('.').slice(0, 3).join('.');
+  fetch('/wol?subnet=' + encodeURIComponent(subnet), { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.ok) { logMsg('WOL enviado a ' + d.broadcast + ' (MAC ' + d.mac + ')'); }
+      else { logMsg('WOL fallo: ' + (d.error || '?')); }
+    })
+    .catch(function(e) { logMsg('WOL fallo: ' + e.message); });
 }
 
 function scanTv() {
-  var parts = TV_IP.split(".");
-  var subnet = parts.slice(0, 3).join(".");
-  scanMsg.textContent = "Escaneando " + subnet + ".1-254...";
-  var found = [];
-  var ips = [];
-  for (var i = 1; i <= 254; i++) ips.push(i);
-  var BATCH = 20;
-
-  function tryIp(i) {
-    var ip = subnet + "." + i;
-    var ctrl = new AbortController();
-    var timer = setTimeout(function() { ctrl.abort(); }, 600);
-    return fetch("http://" + ip + ":1925/1/system", { signal: ctrl.signal })
-      .then(function(r) {
-        if (r.status === 200) return r.json();
-        throw new Error("no");
-      })
-      .then(function(d) {
-        clearTimeout(timer);
-        if (d && d.name) found.push(ip + " (" + d.name + ")");
-      })
-      .catch(function() { clearTimeout(timer); });
-  }
-
-  function runBatch(start) {
-    var batch = ips.slice(start, start + BATCH).map(tryIp);
-    scanMsg.textContent = "Escaneando... " + Math.min(start + BATCH, 254) + "/254";
-    return Promise.all(batch).then(function() {
-      if (start + BATCH < 254) return runBatch(start + BATCH);
-    });
-  }
-
-  runBatch(0).then(function() {
-    if (found.length === 0) {
-      scanMsg.textContent = "No se encontro ninguna TV. ¿El celular esta en el mismo WiFi que la TV? ¿La red es " + subnet + ".x?";
-      return;
-    }
-    setTvIp(found[0].split(" ")[0]);
-    scanMsg.textContent = "Encontrada: " + found.join(" | ");
-    logMsg("TV configurada: " + TV_IP);
-  });
-}
-
-function checkConnection() {
-  var ctrl = new AbortController();
-  var timer = setTimeout(function() { ctrl.abort(); }, 3000);
-  fetch("http://" + TV_IP + ":1925/1/powerstate", { signal: ctrl.signal })
+  var subnet = TV_IP.split('.').slice(0, 3).join('.');
+  scanMsg.textContent = 'Escaneando ' + subnet + '.1-254...';
+  fetch('/scan?subnet=' + encodeURIComponent(subnet))
     .then(function(r) { return r.json(); })
     .then(function(d) {
-      clearTimeout(timer);
-      logMsg("Conectado a " + TV_IP + " — TV " + (d.powerstate === "On" ? "encendida" : "apagada"));
+      if (!d.found || d.found.length === 0) {
+        scanMsg.textContent = 'No se encontro ninguna TV. ¿El celular y la PC estan en el mismo WiFi que la TV?';
+        return;
+      }
+      var names = d.found.map(function(f) { return f.ip + ' (' + f.name + ')'; });
+      scanMsg.textContent = 'Encontrada: ' + names.join(' | ');
+      setTvIp(d.found[0].ip);
+      logMsg('TV configurada: ' + TV_IP);
+      refreshStatus();
     })
-    .catch(function(e) {
-      clearTimeout(timer);
-      logMsg("Sin conexion a " + TV_IP + " (" + e.name + "). ¿Mismo WiFi? ¿Chrome (no visor de WhatsApp)?");
-    });
+    .catch(function(e) { scanMsg.textContent = 'Escaneo fallo: ' + e.message; });
 }
 
 document.getElementById('applyBtn').onclick = function() {
   var ip = ipInput.value.trim();
-  if (ip) { setTvIp(ip); logMsg("TV configurada: " + ip); }
+  if (ip) { setTvIp(ip); logMsg('TV configurada: ' + ip); refreshStatus(); }
 };
 document.getElementById('scanBtn').onclick = scanTv;
-document.getElementById('power').onclick = powerToggle;
-document.getElementById('volup').onclick = function() { sendKey("VolumeUp"); };
-document.getElementById('voldn').onclick = function() { sendKey("VolumeDown"); };
-document.getElementById('chup').onclick = function() { sendKey("ChannelStepUp"); };
-document.getElementById('chdn').onclick = function() { sendKey("ChannelStepDown"); };
-document.getElementById('up').onclick = function() { sendKey("CursorUp"); };
-document.getElementById('down').onclick = function() { sendKey("CursorDown"); };
-document.getElementById('left').onclick = function() { sendKey("CursorLeft"); };
-document.getElementById('right').onclick = function() { sendKey("CursorRight"); };
-document.getElementById('ok').onclick = function() { sendKey("Confirm"); };
-document.getElementById('back').onclick = function() { sendKey("Back"); };
-checkConnection();
+document.getElementById('power').onclick = powerOn;
+document.getElementById('poweroff').onclick = powerOff;
+document.getElementById('volup').onclick = volUp;
+document.getElementById('voldn').onclick = volDown;
+document.getElementById('mute').onclick = toggleMute;
+document.getElementById('chup').onclick = function() { channelMove('up'); };
+document.getElementById('chdn').onclick = function() { channelMove('down'); };
+document.getElementById('refresh').onclick = function() { refreshStatus(); };
+refreshStatus();
 </script>
 </body>
 </html>
